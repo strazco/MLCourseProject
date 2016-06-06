@@ -1,0 +1,110 @@
+---
+title: "ML Course Project"
+author: "Andrew Strasman"
+date: "June 5, 2016"
+output: html_document
+---
+
+# Machine Learning Course Project
+# Andrew Strasman
+
+
+# Background  
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount
+of data about personal activity relatively inexpensively. These type of devices are part of the quantified
+self movement - a group of enthusiasts who take measurements about themselves regularly to improve their
+health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly
+do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. 
+In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell
+of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. 
+More information is available from the website here: http://groupware.les.inf.puc-rio.br/har 
+(see the section on the Weight Lifting Exercise Dataset).
+
+```{r}
+library(rattle)
+library(caret)
+```
+
+### Data  
+(just saving locally for simplicity and since nobody else will be running this)
+```{r}
+download.file("http://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv",
+              destfile = "c://ML//pml-training.csv")
+
+download.file("http://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv", 
+              destfile = "c://ML//pml-testing.csv")
+```
+### Load the datasets
+```{r}
+orig.training <- read.csv("c://ML//pml-training.csv", header=TRUE, na.strings = c("NA",""))
+orig.testing <- read.csv("c://ML//pml-testing.csv", header=TRUE, na.strings = c("NA",""))
+```
+### Prepare the data
+### 1/ Dump the dead weight
+```{r}
+orig.training <- orig.training[,colSums(is.na(orig.training)) == 0]
+orig.testing <- orig.testing[,colSums(is.na(orig.testing)) == 0]
+```
+### 2/ Remove unnecessary columns
+```{r}
+orig.training <- orig.training[,-c(1:6)]
+orig.testing <- orig.testing[,-c(1:6)]
+```
+### 3/ Partition the data for testing/validation
+```{r}
+inTrain <- createDataPartition(orig.training$classe, p = 3/4, list=FALSE)
+training <- orig.training[ inTrain, ]
+testing <- orig.training[-inTrain, ]
+```
+
+# Models  
+
+It's not that we are lazy; we are smart.  Right from the paper "Qualitative Activity Recognition of Weight Lifting Exercises" we are told that they used 17 Principal Components and Random Forest for their modeling.  Great, mission accomplished!  We can essentially recreate their experiment with ease, which is nice but not overly rewarding.  
+
+Let's investigate first with another model to understand a little further of what constitutes "correct form".
+
+### Tree-based with RPART
+```{r}
+modelFit1 <- train(classe ~.,method="rpart",data=training)
+fancyRpartPlot(modelFit1$finalModel)
+cm1 <- confusionMatrix(testing$classe,predict(modelFit1,testing))
+cm1$table
+```
+
+Only 0.56 accurate !  
+
+```{r}
+acc1 <- postResample(testing$classe,predict(modelFit1,testing))
+acc1
+```
+
+Let's use Random Forest and preProces with Principal Components Analysis.  This should get us there.
+
+### Using RF and PCA
+```{r}
+modelFit2 <- train(training$classe ~ ., method="rf", preProcess="pca", data=training)
+modelFit2$results
+plot(modelFit2, metric="Accuracy")
+```
+
+### Predict on validation set
+```{r}
+cm2 <- confusionMatrix(testing$classe,predict(modelFit2,testing))
+cm2$table
+```
+
+### Compute accuracy
+```{r}
+acc2 <- postResample(testing$classe,predict(modelFit2,testing))
+acc2
+```
+
+much better!
+
+### Quiz testing data and results
+```{r}
+quiz <- predict(modelFit2, orig.testing)
+quiz
+```
+
+
